@@ -1,8 +1,8 @@
 {
-  "name": "Dream Boutique",
-  "short_name": "Dream Boutique",
+  "name": "Delhi Boutique",
+  "short_name": "Delhi Boutique",
   "description": "Modest & Ethnic Wears",
-  "start_url": "/Dream-Boutique/",
+  "start_url": "/Delhi-Boutique/",
   "display": "standalone",
   "background_color": "#fdf6f0",
   "theme_color": "#d4896a",
