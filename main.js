@@ -14,9 +14,9 @@ import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, query
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnkKFie4vQzlykaVhnJ_cwILgk4zRQL2Q",
-  authDomain: "Delhi-boutique-fd674.firebaseapp.com",
-  projectId: "Delhi-boutique-fd674",
-  storageBucket: "Delhi-boutique-fd674.firebasestorage.app",
+  authDomain: "dream-boutique-fd674.firebaseapp.com",
+  projectId: "dream-boutique-fd674",
+  storageBucket: "dream-boutique-fd674.firebasestorage.app",
   messagingSenderId: "510483704329",
   appId: "1:510483704329:web:06906cca8ec2d901b0a6d8",
   measurementId: "G-VVX092ZF68"
