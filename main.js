@@ -13,7 +13,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signO
 import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, query, where, getDocs, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDnkKFie4vQzlykaVhnJ_cwILgk4zRQL2Q",
+  apiKey: "AIzaSyAuuzFYcJYa5QOGVuwHntCwXO1qbP6gKb4",
   authDomain: "dream-boutique-fd674.firebaseapp.com",
   projectId: "dream-boutique-fd674",
   storageBucket: "dream-boutique-fd674.firebasestorage.app",
@@ -392,6 +392,7 @@ function initApp() {
 
   renderProducts();
   observeFades();
+  initNavScrollSpy();
   loadReviews();
   loadCartFromStorage(); // Bug-6 fix: restore persisted cart
   document.getElementById('feedbackForm').style.display = 'none';
@@ -523,9 +524,99 @@ function toggleCart(){
   document.getElementById('cartVeil').classList.toggle('open');
 }
 
-function checkoutCart(){
-  if(!cart.length)return;
-  toast('Please use Buy Now on individual items to place your order ✿');
+async function checkoutCart(){
+  if(!cart.length) return;
+  if (!currentUser || currentUser.name === 'Guest') {
+    document.getElementById('loginWall').classList.add('open');
+    return;
+  }
+  const outOfStock = cart.find(p => !p.stock);
+  if (outOfStock) { toast(`"${outOfStock.name}" is currently out of stock ✿`); return; }
+
+  const checkoutBtn = document.querySelector('.wa-checkout-btn');
+  const origBtnText = checkoutBtn ? checkoutBtn.textContent : '';
+  if (checkoutBtn) {
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = '⏳ Placing Order…';
+    checkoutBtn.style.opacity = '0.75';
+  }
+  document.getElementById('orderFreezeOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  const itemsSnapshot = cart.map(p => ({ ...p }));
+  const totalAmt = itemsSnapshot.reduce((s, p) => s + Number(p.price), 0);
+  const productNames = itemsSnapshot.map(p => p.name).join(', ');
+  const orderedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+  try {
+    // 1. Log a single combined order (all bag items) to Firestore
+    await addDoc(collection(db, 'orders'), {
+      productName: productNames,
+      productIds: itemsSnapshot.map(p => p.id),
+      items: itemsSnapshot.map(p => ({ id: p.id, name: p.name, price: p.price })),
+      quantity: itemsSnapshot.length,
+      totalAmount: totalAmt,
+      buyerEmail: currentUser.email,
+      buyerName: currentUser.name,
+      orderedAt,
+      createdAt: serverTimestamp(),
+    });
+
+    // 2. Add all products to purchases collection for review eligibility
+    const pq = query(collection(db, 'purchases'), where('email', '==', currentUser.email));
+    const psnap = await getDocs(pq);
+    const newNames = itemsSnapshot.map(p => p.name);
+    if (psnap.empty) {
+      await addDoc(collection(db, 'purchases'), {
+        email: currentUser.email,
+        products: newNames,
+      });
+    } else {
+      const pdoc = psnap.docs[0];
+      const existing = pdoc.data().products || [];
+      const merged = [...existing];
+      newNames.forEach(n => { if (!merged.includes(n)) merged.push(n); });
+      await updateDoc(pdoc.ref, { products: merged });
+    }
+
+    // 3. Send EmailJS notification
+    await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
+      to_email: 'noorproductions.as@gmail.com',
+      buyer_name: currentUser.name,
+      buyer_email: currentUser.email,
+      product_name: productNames,
+      quantity: itemsSnapshot.length,
+      total_amount: '₹' + totalAmt.toLocaleString('en-IN'),
+      ordered_at: orderedAt,
+    });
+
+    // 4. Restore button state, clear the bag, then show order confirmation
+    if (checkoutBtn) {
+      checkoutBtn.disabled = false;
+      checkoutBtn.textContent = origBtnText || '🛒 Place Order';
+      checkoutBtn.style.opacity = '';
+    }
+    document.getElementById('orderFreezeOverlay').classList.remove('active');
+    cart = [];
+    updateCart();
+    saveCartToStorage();
+    toggleCart();
+    document.getElementById('orderDetailProduct').textContent = productNames;
+    document.getElementById('orderDetailQty').textContent = itemsSnapshot.length;
+    document.getElementById('orderDetailAmount').textContent = '₹' + totalAmt.toLocaleString('en-IN');
+    document.getElementById('orderDetailEmail').textContent = currentUser.email;
+    document.getElementById('orderVeil').classList.add('open');
+
+  } catch(err) {
+    console.error('Bag checkout error:', err);
+    if (checkoutBtn) {
+      checkoutBtn.disabled = false;
+      checkoutBtn.textContent = origBtnText || '🛒 Place Order';
+      checkoutBtn.style.opacity = '';
+    }
+    document.getElementById('orderFreezeOverlay').classList.remove('active');
+    toast('Something went wrong. Please try again ✿');
+  }
 }
 
 // ═══════════════════════════════════════
@@ -806,6 +897,52 @@ function observeFades(){
     entries.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>e.target.classList.add('in'),i*55);obs.unobserve(e.target);}});
   },{threshold:0.07});
   document.querySelectorAll('.fade-up:not(.in)').forEach(el=>obs.observe(el));
+}
+
+// ═══════════════════════════════════════
+// NAV SCROLL-SPY — highlights the current section in the sticky nav
+// ═══════════════════════════════════════
+let _navSpyInitDone = false;
+function initNavScrollSpy(){
+  if (_navSpyInitDone) return; // avoid double-binding if onUserReady runs more than once
+  _navSpyInitDone = true;
+
+  const navLinks = Array.from(document.querySelectorAll('.nav-links a[href^="#"]'));
+  if (!navLinks.length) return;
+
+  const sections = navLinks
+    .map(link => document.getElementById(link.getAttribute('href').slice(1)))
+    .filter(Boolean);
+  if (!sections.length) return;
+
+  const setActive = (id) => {
+    navLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+    });
+  };
+
+  const navEl = document.querySelector('nav');
+  const navHeight = navEl ? navEl.offsetHeight : 0;
+
+  const spyObs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) setActive(entry.target.id);
+    });
+  }, {
+    // Treat a section as "current" once it's just under the sticky nav,
+    // and stop counting it a bit before the next section arrives.
+    rootMargin: `-${navHeight + 10}px 0px -55% 0px`,
+    threshold: 0
+  });
+
+  sections.forEach(sec => spyObs.observe(sec));
+
+  // Also react instantly to a direct nav click, rather than waiting on scroll settle
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      setActive(link.getAttribute('href').slice(1));
+    });
+  });
 }
 
 // Expose functions globally for onclick attributes and profile.js
