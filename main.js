@@ -13,7 +13,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signO
 import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, query, where, getDocs, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAuuzFYcJYa5QOGVuwHntCwXO1qbP6gKb4",
+  apiKey: "AIzaSyDnkKFie4vQzlykaVhnJ_cwILgk4zRQL2Q",
   authDomain: "dream-boutique-fd674.firebaseapp.com",
   projectId: "dream-boutique-fd674",
   storageBucket: "dream-boutique-fd674.firebasestorage.app",
