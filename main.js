@@ -667,7 +667,7 @@ function changeQty(delta) {
 // ═══════════════════════════════════════
 // BUY NOW
 // ═══════════════════════════════════════
-const EJS_SERVICE  = 'Delhi Boutique';
+const EJS_SERVICE  = 'Dream Boutique';
 const EJS_TEMPLATE = 'template_3gu6aux';
 const EJS_PUBKEY   = 'JsS_HIYQlBNniDhUK';
 
